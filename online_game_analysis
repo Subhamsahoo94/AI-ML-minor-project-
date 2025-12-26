@@ -1,0 +1,309 @@
+"""
+Online Gaming Session Duration Analysis
+AI/ML Project - Statistical Analysis & User Engagement Insights
+Author: [Your Name]
+Date: December 2025
+"""
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+import warnings
+warnings.filterwarnings('ignore')
+
+# Set style for better visualizations
+plt.style.use('seaborn-v0_8-darkgrid')
+sns.set_palette("husl")
+
+class GamingSessionAnalyzer:
+    """
+    A comprehensive analyzer for gaming session durations with statistical
+    analysis and machine learning-based user engagement insights.
+    """
+    
+    def __init__(self, sessions_data=None):
+        """Initialize the analyzer with session data"""
+        if sessions_data is None:
+            # Generate realistic gaming session data (in minutes)
+            np.random.seed(42)
+            self.sessions = np.concatenate([
+                np.random.normal(45, 15, 100),    # Casual gamers
+                np.random.normal(90, 20, 80),     # Regular gamers
+                np.random.normal(150, 30, 50),    # Hardcore gamers
+                np.random.uniform(15, 30, 20)     # Quick sessions
+            ])
+            self.sessions = np.clip(self.sessions, 10, 300)  # Realistic bounds
+        else:
+            self.sessions = np.array(sessions_data)
+        
+        self.df = pd.DataFrame({'duration': self.sessions})
+        self.stats = {}
+        
+    def calculate_statistics(self):
+        """Calculate comprehensive statistical metrics"""
+        self.stats = {
+            'count': len(self.sessions),
+            'mean': np.mean(self.sessions),
+            'median': np.median(self.sessions),
+            'std': np.std(self.sessions),
+            'variance': np.var(self.sessions),
+            'min': np.min(self.sessions),
+            'max': np.max(self.sessions),
+            'range': np.ptp(self.sessions),
+            'q1': np.percentile(self.sessions, 25),
+            'q3': np.percentile(self.sessions, 75),
+            'iqr': np.percentile(self.sessions, 75) - np.percentile(self.sessions, 25),
+            'skewness': stats.skew(self.sessions),
+            'kurtosis': stats.kurtosis(self.sessions),
+            'cv': (np.std(self.sessions) / np.mean(self.sessions)) * 100
+        }
+        return self.stats
+    
+    def categorize_engagement(self):
+        """Categorize sessions into engagement levels"""
+        self.df['engagement'] = pd.cut(
+            self.df['duration'],
+            bins=[0, 60, 120, np.inf],
+            labels=['Low (0-60min)', 'Medium (60-120min)', 'High (>120min)']
+        )
+        
+        engagement_counts = self.df['engagement'].value_counts()
+        engagement_pct = (engagement_counts / len(self.df)) * 100
+        
+        return engagement_counts, engagement_pct
+    
+    def perform_clustering(self, n_clusters=3):
+        """Use K-Means clustering to identify user segments"""
+        scaler = StandardScaler()
+        scaled_data = scaler.fit_transform(self.df[['duration']])
+        
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        self.df['cluster'] = kmeans.fit_predict(scaled_data)
+        
+        # Get cluster centers in original scale
+        cluster_centers = scaler.inverse_transform(kmeans.cluster_centers_)
+        
+        return cluster_centers, self.df['cluster'].value_counts()
+    
+    def detect_outliers(self):
+        """Detect outliers using IQR method"""
+        q1 = self.stats['q1']
+        q3 = self.stats['q3']
+        iqr = self.stats['iqr']
+        
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        
+        outliers = self.df[(self.df['duration'] < lower_bound) | 
+                          (self.df['duration'] > upper_bound)]
+        
+        return outliers, lower_bound, upper_bound
+    
+    def print_report(self):
+        """Print comprehensive analysis report"""
+        print("=" * 80)
+        print("ONLINE GAMING SESSION DURATION ANALYSIS - AI/ML PROJECT")
+        print("=" * 80)
+        
+        print("\n📊 DESCRIPTIVE STATISTICS")
+        print("-" * 80)
+        print(f"Total Sessions Analyzed:     {self.stats['count']}")
+        print(f"Mean Duration:               {self.stats['mean']:.2f} minutes")
+        print(f"Median Duration:             {self.stats['median']:.2f} minutes")
+        print(f"Standard Deviation:          {self.stats['std']:.2f} minutes")
+        print(f"Variance:                    {self.stats['variance']:.2f}")
+        print(f"Coefficient of Variation:    {self.stats['cv']:.2f}%")
+        print(f"\nRange:                       {self.stats['min']:.2f} - {self.stats['max']:.2f} minutes")
+        print(f"Interquartile Range (IQR):   {self.stats['iqr']:.2f} minutes")
+        print(f"Q1 (25th percentile):        {self.stats['q1']:.2f} minutes")
+        print(f"Q3 (75th percentile):        {self.stats['q3']:.2f} minutes")
+        print(f"\nSkewness:                    {self.stats['skewness']:.3f}")
+        print(f"Kurtosis:                    {self.stats['kurtosis']:.3f}")
+        
+        # Engagement Analysis
+        eng_counts, eng_pct = self.categorize_engagement()
+        print("\n🎮 USER ENGAGEMENT ANALYSIS")
+        print("-" * 80)
+        for category in eng_counts.index:
+            count = eng_counts[category]
+            pct = eng_pct[category]
+            print(f"{category:25s} {count:4d} sessions ({pct:5.1f}%)")
+        
+        # Clustering Results
+        print("\n🤖 MACHINE LEARNING INSIGHTS (K-Means Clustering)")
+        print("-" * 80)
+        cluster_centers, cluster_counts = self.perform_clustering()
+        cluster_labels = ['Casual Gamers', 'Regular Gamers', 'Hardcore Gamers']
+        sorted_indices = np.argsort(cluster_centers.flatten())
+        
+        for i, idx in enumerate(sorted_indices):
+            print(f"Cluster {i+1} - {cluster_labels[i]:15s} "
+                  f"Avg: {cluster_centers[idx][0]:6.2f} min, "
+                  f"Users: {cluster_counts[idx]:4d} ({cluster_counts[idx]/len(self.df)*100:5.1f}%)")
+        
+        # Outliers
+        outliers, lower, upper = self.detect_outliers()
+        print(f"\n⚠️  OUTLIER DETECTION")
+        print("-" * 80)
+        print(f"Outliers Detected:           {len(outliers)} sessions")
+        print(f"Normal Range:                {lower:.2f} - {upper:.2f} minutes")
+        if len(outliers) > 0:
+            print(f"Outlier Values:              {outliers['duration'].values[:5]} ...")
+        
+        # Key Insights
+        print("\n💡 KEY INSIGHTS & RECOMMENDATIONS")
+        print("-" * 80)
+        
+        # Insight 1: Average behavior
+        if self.stats['mean'] < 60:
+            print("1. SHORT SESSION PATTERN: Users prefer quick gaming sessions.")
+            print("   Recommendation: Focus on quick-play modes and mobile optimization.")
+        elif self.stats['mean'] < 120:
+            print("1. MODERATE SESSION PATTERN: Balanced engagement levels detected.")
+            print("   Recommendation: Mix of casual and immersive content works well.")
+        else:
+            print("1. EXTENDED SESSION PATTERN: High user engagement observed.")
+            print("   Recommendation: Maintain deep gameplay mechanics and progression systems.")
+        
+        # Insight 2: Variability
+        if self.stats['cv'] > 50:
+            print("\n2. HIGH VARIABILITY: Diverse player base with varying play styles.")
+            print("   Recommendation: Implement adaptive difficulty and multiple game modes.")
+        else:
+            print("\n2. LOW VARIABILITY: Consistent player behavior patterns.")
+            print("   Recommendation: Optimize for the primary user segment.")
+        
+        # Insight 3: Distribution shape
+        if abs(self.stats['skewness']) > 0.5:
+            print("\n3. SKEWED DISTRIBUTION: Asymmetric playing patterns detected.")
+            if self.stats['skewness'] > 0:
+                print("   Many short sessions with some extended ones.")
+                print("   Recommendation: Improve retention strategies for casual players.")
+            else:
+                print("   Mostly longer sessions with few quick ones.")
+                print("   Recommendation: Add quick-play features for time-constrained users.")
+        
+        print("\n" + "=" * 80)
+    
+    def visualize_analysis(self):
+        """Create comprehensive visualizations"""
+        fig = plt.figure(figsize=(16, 12))
+        gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.3)
+        
+        # 1. Histogram with KDE
+        ax1 = fig.add_subplot(gs[0, :2])
+        ax1.hist(self.sessions, bins=30, alpha=0.7, color='steelblue', 
+                edgecolor='black', density=True, label='Histogram')
+        
+        # Add KDE
+        from scipy.stats import gaussian_kde
+        kde = gaussian_kde(self.sessions)
+        x_range = np.linspace(self.sessions.min(), self.sessions.max(), 100)
+        ax1.plot(x_range, kde(x_range), 'r-', linewidth=2, label='KDE')
+        
+        ax1.axvline(self.stats['mean'], color='green', linestyle='--', 
+                   linewidth=2, label=f"Mean: {self.stats['mean']:.1f}min")
+        ax1.axvline(self.stats['median'], color='orange', linestyle='--', 
+                   linewidth=2, label=f"Median: {self.stats['median']:.1f}min")
+        ax1.set_xlabel('Session Duration (minutes)', fontsize=11, fontweight='bold')
+        ax1.set_ylabel('Density', fontsize=11, fontweight='bold')
+        ax1.set_title('Session Duration Distribution with KDE', fontsize=13, fontweight='bold')
+        ax1.legend()
+        ax1.grid(alpha=0.3)
+        
+        # 2. Box Plot
+        ax2 = fig.add_subplot(gs[0, 2])
+        bp = ax2.boxplot(self.sessions, patch_artist=True, vert=True,
+                        boxprops=dict(facecolor='lightblue', alpha=0.7),
+                        medianprops=dict(color='red', linewidth=2),
+                        whiskerprops=dict(linewidth=1.5))
+        ax2.set_ylabel('Duration (minutes)', fontsize=11, fontweight='bold')
+        ax2.set_title('Box Plot Analysis', fontsize=13, fontweight='bold')
+        ax2.grid(alpha=0.3, axis='y')
+        
+        # 3. Engagement Pie Chart
+        ax3 = fig.add_subplot(gs[1, 0])
+        eng_counts, _ = self.categorize_engagement()
+        colors = ['#ff9999', '#66b3ff', '#99ff99']
+        ax3.pie(eng_counts.values, labels=eng_counts.index, autopct='%1.1f%%',
+               colors=colors, startangle=90)
+        ax3.set_title('Engagement Categories', fontsize=13, fontweight='bold')
+        
+        # 4. Cumulative Distribution
+        ax4 = fig.add_subplot(gs[1, 1])
+        sorted_sessions = np.sort(self.sessions)
+        cumulative = np.arange(1, len(sorted_sessions) + 1) / len(sorted_sessions) * 100
+        ax4.plot(sorted_sessions, cumulative, linewidth=2, color='purple')
+        ax4.set_xlabel('Duration (minutes)', fontsize=11, fontweight='bold')
+        ax4.set_ylabel('Cumulative %', fontsize=11, fontweight='bold')
+        ax4.set_title('Cumulative Distribution Function', fontsize=13, fontweight='bold')
+        ax4.grid(alpha=0.3)
+        ax4.axhline(50, color='red', linestyle='--', alpha=0.5)
+        
+        # 5. Q-Q Plot
+        ax5 = fig.add_subplot(gs[1, 2])
+        stats.probplot(self.sessions, dist="norm", plot=ax5)
+        ax5.set_title('Q-Q Plot (Normality Check)', fontsize=13, fontweight='bold')
+        ax5.grid(alpha=0.3)
+        
+        # 6. Cluster Visualization
+        ax6 = fig.add_subplot(gs[2, :])
+        scatter = ax6.scatter(range(len(self.df)), self.df['duration'], 
+                            c=self.df['cluster'], cmap='viridis', 
+                            alpha=0.6, s=50, edgecolors='black')
+        ax6.set_xlabel('Session Index', fontsize=11, fontweight='bold')
+        ax6.set_ylabel('Duration (minutes)', fontsize=11, fontweight='bold')
+        ax6.set_title('K-Means Clustering: User Segments', fontsize=13, fontweight='bold')
+        plt.colorbar(scatter, ax=ax6, label='Cluster')
+        ax6.grid(alpha=0.3)
+        
+        # Add statistics text box
+        stats_text = f"n={self.stats['count']}\nμ={self.stats['mean']:.1f}\nσ={self.stats['std']:.1f}\nMedian={self.stats['median']:.1f}"
+        ax6.text(0.02, 0.98, stats_text, transform=ax6.transAxes,
+                fontsize=10, verticalalignment='top',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+        
+        plt.suptitle('Online Gaming Session Duration Analysis - Complete Report', 
+                    fontsize=16, fontweight='bold', y=0.995)
+        
+        plt.savefig('gaming_session_analysis.png', dpi=300, bbox_inches='tight')
+        print("\n📈 Visualization saved as 'gaming_session_analysis.png'")
+        plt.show()
+
+
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+
+if __name__ == "__main__":
+    print("\n🎮 Initializing Gaming Session Analyzer...\n")
+    
+    # Create analyzer instance
+    analyzer = GamingSessionAnalyzer()
+    
+    # Calculate statistics
+    analyzer.calculate_statistics()
+    
+    # Print comprehensive report
+    analyzer.print_report()
+    
+    # Generate visualizations
+    print("\n📊 Generating visualizations...")
+    analyzer.visualize_analysis()
+    
+    print("\n✅ Analysis Complete!\n")
+    print("=" * 80)
+    print("PROJECT DELIVERABLES:")
+    print("  ✓ Statistical analysis (mean, std, variance, IQR, skewness, kurtosis)")
+    print("  ✓ Histograms with KDE overlay")
+    print("  ✓ Box plots for outlier detection")
+    print("  ✓ Engagement categorization")
+    print("  ✓ K-Means clustering for user segmentation")
+    print("  ✓ Q-Q plot for normality testing")
+    print("  ✓ Cumulative distribution analysis")
+    print("  ✓ Actionable insights and recommendations")
+    print("=" * 80)
